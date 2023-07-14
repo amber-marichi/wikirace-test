@@ -35,3 +35,35 @@ WHERE from_article = article_id
 -- ADD_LINKS_QUERY
 INSERT INTO links (from_article, to_article) 
 VALUES (from_article_id, to_article_id) ON CONFLICT DO NOTHING;
+
+
+-- QUERIES TO RUN AFTER DB IS POPULATED
+
+-- TOP 5 ARTICLES WITH BIGGEST NUMBER OF REFERENCES ON IT
+SELECT articles.title, COUNT(*) AS connection_count
+FROM articles
+JOIN links ON articles.id = links.to_article
+GROUP BY articles.title
+ORDER BY connection_count DESC
+LIMIT 5;
+
+
+-- TOP 5 ARTICLES WITH BIGGEST NUMBER OF REFERENCES ON OTHER
+SELECT articles.title, COUNT(*) AS connection_count
+FROM articles
+JOIN links ON articles.id = links.from_article
+GROUP BY articles.title
+ORDER BY connection_count DESC
+LIMIT 5;
+
+
+-- GET AVERAGE LINK COUNT FOR ALL LINKS OF GIVEN ARTICLE
+SELECT AVG(link_count) AS average_link_count
+FROM (
+  SELECT (
+	  SELECT COUNT(*) FROM links WHERE links.to_article = links.to_article
+  ) AS link_count
+  FROM links JOIN articles
+  ON articles.id=links.from_article
+  WHERE title = 'Рим'
+) AS subquery;
