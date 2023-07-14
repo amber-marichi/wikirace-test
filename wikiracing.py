@@ -3,6 +3,7 @@ from typing import List
 
 import psycopg2
 import requests
+from requests import Response
 from bs4 import BeautifulSoup
 from ratelimiter import RateLimiter
 from urllib.parse import unquote
@@ -26,7 +27,7 @@ POSTGRES_DB_PORT = 5432
 
 
 @RateLimiter(max_calls=requests_per_minute, period=time_period)
-def get_page(page_name: str) -> str:
+def get_page(page_name: str) -> Response:
     url = MAIN_URL + page_name
 
     try:
@@ -46,11 +47,11 @@ class WikiDataBase:
         )
         self.cursor = self.connection.cursor()
         self._check_create_tables()
-    
+
     def __del__(self) -> None:
         self.cursor.close()
         self.connection.close()
-    
+
     def _check_create_tables(self) -> None:
         self.cursor.execute(queries.CREATE_ARTICLE_TABLE)
         self.cursor.execute(queries.CREATE_LINK_TABLE)
@@ -62,13 +63,13 @@ class WikiDataBase:
         self.cursor.execute(queries.GET_ARTICLE_QUERY, (article_name,))
 
         return self.cursor.fetchone()[0]
-    
+
     def get_links_from_db(self, article_id: int) -> List[str]:
         self.cursor.execute(queries.GET_LINKS_QUERY, (article_id,))
         result = self.cursor.fetchall()
 
         return [val[0] for val in result]
-    
+
     def add_links(self, article_id: int, link_list: List[str]) -> None:
         link_id_list = [self.get_article_id(link) for link in link_list]
         values = [(article_id, link_id) for link_id in link_id_list]
@@ -79,8 +80,9 @@ class WikiDataBase:
 class WikiRacer:
     def __init__(self) -> None:
         self.database = WikiDataBase()
-    
-    def _get_links_from_page(self, article_name: str) -> List[str]:
+
+    @staticmethod
+    def _get_links_from_page(article_name: str) -> List[str]:
         page_content = get_page(article_name)
         soup = BeautifulSoup(page_content.text, "html.parser")
         all_link_found = soup.findAll("a")
@@ -96,7 +98,7 @@ class WikiRacer:
                 link_list.append(unquote(temp_link)[6:].replace("_", " "))
 
         return link_list
-    
+
     def _get_all_links(self, article_name: str) -> List[str]:
         article_id = self.database.get_article_id(article_name)
         link_list = self.database.get_links_from_db(article_id)
@@ -105,7 +107,7 @@ class WikiRacer:
 
         link_list = self._get_links_from_page(article_name)
         self.database.add_links(article_id, link_list)
-        
+
         return link_list
 
     def find_path(self, start: str, finish: str) -> List[str]:
@@ -118,7 +120,7 @@ class WikiRacer:
 
             if cur_article in seen:
                 continue
-            
+
             seen.add(cur_article)
             article_links = self._get_all_links(cur_article)
 
